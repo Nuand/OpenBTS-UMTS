@@ -100,43 +100,31 @@ int bladeRFDevice::set_rates(double tx_rate, double rx_rate)
 
 double bladeRFDevice::setTxGain(double db)
 {
-    int txvga1, txvga2;
     double tx_gain;
+    int hw_gain;
 
-    bladerf_set_gain(dev, BLADERF_MODULE_TX, db);
+    bladerf_set_gain(dev, BLADERF_CHANNEL_TX(0), db);
+    bladerf_get_gain(dev, BLADERF_CHANNEL_TX(0), &hw_gain);
 
-    txvga1 = txvga2 = 0;
-    bladerf_get_txvga1(dev, &txvga1);
-    bladerf_get_txvga2(dev, &txvga2);
+    tx_gain = (double)hw_gain;
 
-    tx_gain = txvga1 + txvga2;
+    LOG(INFO) << "Set TX gain to " << tx_gain << "dB";
 
-	LOG(INFO) << "Set TX gain to " << tx_gain << "dB";
-
-	return tx_gain;
+    return tx_gain;
 }
 
 double bladeRFDevice::setRxGain(double db)
 {
-    bladerf_lna_gain lna_gain;
-    int rxvga1, rxvga2;
+    int hw_gain;
     double rx_gain;
 
-    bladerf_get_lna_gain(dev, &lna_gain);
-    bladerf_get_rxvga1(dev, &rxvga1);
-    bladerf_get_rxvga2(dev, &rxvga2);
+    bladerf_set_gain(dev, BLADERF_CHANNEL_RX(0), db);
+    bladerf_get_gain(dev, BLADERF_CHANNEL_RX(0), &hw_gain);
 
-    rx_gain = 0;
-    if (lna_gain == BLADERF_LNA_GAIN_MID)
-        rx_gain = BLADERF_LNA_GAIN_MID_DB;
-    else if (lna_gain == BLADERF_LNA_GAIN_MAX)
-        rx_gain = BLADERF_LNA_GAIN_MAX_DB;
+    rx_gain = (double)hw_gain;
+    LOG(INFO) << "Set RX gain to " << rx_gain << "dB";
 
-    rx_gain += rxvga1 + rxvga2;
-
-	LOG(INFO) << "Set RX gain to " << rx_gain << "dB";
-
-	return rx_gain;
+    return rx_gain;
 }
 
 bool bladeRFDevice::open(const std::string &args, bool extref)
@@ -160,7 +148,7 @@ bool bladeRFDevice::open(const std::string &args, bool extref)
 #define BUF_SIZE 1024
 #define TIMEOUT_MS 0
     status = bladerf_sync_config(dev,
-            BLADERF_MODULE_RX,
+            BLADERF_RX_X1,
             BLADERF_FORMAT_SC16_Q11_META,
             NUM_BUFFERS,
             BUF_SIZE,
@@ -173,7 +161,7 @@ bool bladeRFDevice::open(const std::string &args, bool extref)
     }
 
     status = bladerf_sync_config(dev,
-            BLADERF_MODULE_TX,
+            BLADERF_TX_X1,
             BLADERF_FORMAT_SC16_Q11_META,
             NUM_BUFFERS,
             BUF_SIZE,
@@ -314,7 +302,7 @@ int bladeRFDevice::writeSamples(short *buf, int len,
     if (status < 0) {
         uint64_t curr_ts;
         LOG(ALERT) << "TX Error " << status;
-        status = bladerf_get_timestamp(dev, BLADERF_MODULE_TX, &curr_ts);
+        status = bladerf_get_timestamp(dev, BLADERF_TX, &curr_ts);
         LOG(ALERT) << len << " Requested " << ts << " now: " << curr_ts;
     }
 
@@ -323,7 +311,7 @@ int bladeRFDevice::writeSamples(short *buf, int len,
 
 bool bladeRFDevice::setTxFreq(double wFreq)
 {
-    unsigned int actual;
+    uint64_t actual;
     int status;
 
     status = bladerf_set_frequency(dev, BLADERF_MODULE_TX, (unsigned int)wFreq);
@@ -346,7 +334,7 @@ bool bladeRFDevice::setTxFreq(double wFreq)
 
 bool bladeRFDevice::setRxFreq(double wFreq)
 {
-    unsigned int actual;
+    uint64_t actual;
     int status;
     status = bladerf_set_frequency(dev, BLADERF_MODULE_RX, (unsigned int)wFreq);
     if (status < 0) {
